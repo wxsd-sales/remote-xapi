@@ -26,10 +26,10 @@ The library also parses XML responses into JavaScript objects and primitive valu
 
 ### Installation Steps
 
-1. Open the RoomOS device web interface, then go to `Customization > Macro Editor`.
+1. Open the RoomOS devices web interface, then go to `Customization > Macro Editor`.
 2. Create a new macro named `remote-xapi`.
-3. Paste the contents of [remote-xapi.js](/Users/wimills/Documents/GitHub/remote-xapi/remote-xapi.js:1) into that macro and save it.
-4. Set the `remote-xapi` macro to `On` so the library is loaded by the RoomOS macro runtime.
+3. Paste the contents of [remote-xapi.js](/remote-xapi.js) into that macro and save it.
+4. Keep the `remote-xapi` macro to `Off` as this macro is intended to be imported by other macros.
 5. Create a second macro for your application logic, for example `remote-xapi-demo`.
 6. Import the library macro in your application macro:
 
