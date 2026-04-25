@@ -8,7 +8,7 @@ Key features:
 
 ## Overview
 
-`remote-xapi.js` wraps remote RoomOS xAPI calls behind a simple JavaScript interface that feels similar to the local `xapi` object used in macros. The library automatically decides whether a request should be sent as a `getxml` or `putxml` call, then sends it to the remote endpoint with the local device's `HttpClient`.
+`remote-xapi.js` wraps remote RoomOS xAPI calls behind a simple JavaScript interface that feels similar to the local `xapi` object used in macros. The library automatically decides whether a request should be sent as a `getxml` or `putxml` call, then sends it to the remote device with the local device's `HttpClient`.
 
 To keep macro execution reliable, requests are placed onto a queue and processed one at a time. This helps avoid failures caused by opening too many concurrent `HttpClient` requests from the RoomOS macro runtime.
 
@@ -20,7 +20,7 @@ The library also parses XML responses into JavaScript objects and primitive valu
 
 - A Cisco RoomOS device with Macro Editor access.
 - `HttpClient` enabled on the local RoomOS device running the macro.
-- Network connectivity from the local RoomOS device to each remote RoomOS endpoint.
+- Network connectivity from the local RoomOS device to each remote RoomOS device.
 - Credentials for the remote RoomOS device API account.
 - A copy of `remote-xapi.js` from this repository.
 
@@ -37,7 +37,7 @@ The library also parses XML responses into JavaScript objects and primitive valu
 import { RemoteXAPI } from './remote-xapi';
 ```
 
-7. Create a remote endpoint definition with the target device address and credentials:
+7. Create a remote device definition with the target device address and credentials:
 
 ```js
 const remoteCodec = new RemoteXAPI({
@@ -92,7 +92,7 @@ xapi.Event.SystemUnit.State.NumberOfActiveCalls.on((activeCalls) => {
 
 ## Notes
 
-- `Status` requests return parsed values such as strings, numbers, booleans, arrays, or objects depending on the XML returned by the remote endpoint.
+- `Status` requests return parsed values such as strings, numbers, booleans, arrays, or objects depending on the XML returned by the remote device.
 - `Config` writes are sent with `putxml` and return the parsed RoomOS response body.
 - `Command` requests automatically build the expected XML payload and return the parsed `*Result` object when present.
 

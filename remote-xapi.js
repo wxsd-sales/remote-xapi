@@ -30,7 +30,7 @@
 
 import xapi from 'xapi';
 
-const DEBUG = globalThis?.process?.env?.REMOTE_XAPI_DEBUG === 'true';
+const DEBUG = false;
 const Timeout = 2;
 
 /**
@@ -116,19 +116,19 @@ export class RemoteXAPI {
   Config;
 
   /**
-   * Creates a remote xAPI client for another RoomOS endpoint.
+   * Creates a remote xAPI client for another RoomOS device.
    *
-   * @param {{address: string, username: string, password: string}} endpoint - Remote endpoint connection details.
+   * @param {{address: string, username: string, password: string}} device - Remote device connection details.
    */
-  constructor(endpoint) {
-    if (endpoint == null || typeof endpoint == 'undefined') {
-      throw new Error('endpoint not defined');
+  constructor(device) {
+    if (device == null || typeof device == 'undefined') {
+      throw new Error('device not defined');
     }
 
-    const { address, username, password } = endpoint;
-    if (!address) throw new Error('endpoint.address not defined');
-    if (!username) throw new Error('endpoint.username not defined');
-    if (!password) throw new Error('endpoint.password not defined');
+    const { address, username, password } = device;
+    if (!address) throw new Error('device.address not defined');
+    if (!username) throw new Error('device.username not defined');
+    if (!password) throw new Error('device.password not defined');
 
     const ipv6_regex = /^(?:(?:[a-fA-F\d]{1,4}:){7}(?:[a-fA-F\d]{1,4}|:)|(?:[a-fA-F\d]{1,4}:){6}(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|:[a-fA-F\d]{1,4}|:)|(?:[a-fA-F\d]{1,4}:){5}(?::(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,2}|:)|(?:[a-fA-F\d]{1,4}:){4}(?:(?::[a-fA-F\d]{1,4}){0,1}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,3}|:)|(?:[a-fA-F\d]{1,4}:){3}(?:(?::[a-fA-F\d]{1,4}){0,2}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,4}|:)|(?:[a-fA-F\d]{1,4}:){2}(?:(?::[a-fA-F\d]{1,4}){0,3}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,5}|:)|(?:[a-fA-F\d]{1,4}:){1}(?:(?::[a-fA-F\d]{1,4}){0,4}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,6}|:)|(?::(?:(?::[a-fA-F\d]{1,4}){0,5}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,7}|:)))(?:%[0-9a-zA-Z]{1,})?$/gm;     
 

@@ -31,18 +31,18 @@ describe("RemoteXAPI", () => {
     expect(xapi.Config.HttpClient.AllowInsecureHTTPS.set).toHaveBeenCalledWith("True");
   });
 
-  it("validates required endpoint fields", async () => {
+  it("validates required device fields", async () => {
     const { RemoteXAPI } = await import("./remote-xapi.js");
 
-    expect(() => new RemoteXAPI()).toThrow("endpoint not defined");
+    expect(() => new RemoteXAPI()).toThrow("device not defined");
     expect(() => new RemoteXAPI({ username: "admin", password: "password" })).toThrow(
-      "endpoint.address not defined",
+      "device.address not defined",
     );
     expect(() => new RemoteXAPI({ address: "10.1.1.1", password: "password" })).toThrow(
-      "endpoint.username not defined",
+      "device.username not defined",
     );
     expect(() => new RemoteXAPI({ address: "10.1.1.1", username: "admin" })).toThrow(
-      "endpoint.password not defined",
+      "device.password not defined",
     );
   });
 
