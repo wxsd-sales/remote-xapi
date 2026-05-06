@@ -1,37 +1,48 @@
 /********************************************************
- * 
+ *
  * Author:              William Mills
  *                    	Solutions Engineer
  *                    	wimills@cisco.com
  *                    	Cisco Systems
- * 
- * 
- * Version: 1-0-0
- * Released: 02/23/26
- * 
+ *
+ *
+ * Version: 1-0-1
+ * Released: 05/06/26
+ *
  * Remote-XAPI:
- * 
+ *
  * JavaScript helper library for Cisco RoomOS macros that send xAPI
  * status, configuration, and command requests to remote RoomOS devices
  * over HTTPS using the local HttpClient xCommands.
  *
  * Key features:
- * - HTTP request queueing to prevent the macro runtime from exhausting
- *   the limited number of available HttpClient request slots.
- * - Built-in XML-to-JSON style parsing for RoomOS xAPI responses, which
- *   is needed because the Cisco Collaboration macro JavaScript runtime
- *   does not include a native XML parsing library.
- * 
- * Full Readme, source code and license details for this macro 
+ *
+ * - Dot-notation access that feels similar to the local RoomOS xapi object.
+ *
+ * - HTTP request queueing to prevent the macro runtime from exhausting the
+ *   limited number of available HttpClient request slots.
+ *
+ * - Built-in XML-to-JavaScript parsing for RoomOS xAPI responses, which is
+ *   needed because the Cisco Collaboration macro JavaScript runtime does not
+ *   include a native XML parsing library.
+ *
+ * - RoomOS-style error objects for remote command and HttpClient failures.
+ *
+ * Full Readme, source code and license details for this macro
  * are available GitHub:
  * https://github.com/wxsd-sales/remote-xapi
- * 
+ *
  ********************************************************/
 
-import xapi from 'xapi';
+import xapi from "xapi";
 
 const DEBUG = false;
 const Timeout = 2;
+const INVALID_COMMAND_ERROR = { code: 3, message: "Unknown command" };
+const INVALID_OR_MISSING_PARAMETERS_ERROR = {
+  code: 4,
+  message: "Invalid or missing parameters",
+};
 
 /**
  * Creates a console wrapper that prefixes each log line with a component name.
@@ -52,8 +63,8 @@ function loggerPrefix(prefix) {
   );
 }
 
-const httpQueue = new class HttpQueue {
-  #queue = []
+const httpQueue = new (class HttpQueue {
+  #queue = [];
   #isProcessing = false;
   #logger;
 
@@ -61,7 +72,7 @@ const httpQueue = new class HttpQueue {
    * Creates a serialized HTTP queue for RoomOS `HttpClient` calls.
    */
   constructor() {
-    this.#logger = loggerPrefix('HttpQueue');
+    this.#logger = loggerPrefix("HttpQueue");
   }
 
   /**
@@ -71,10 +82,10 @@ const httpQueue = new class HttpQueue {
    * @returns {Promise<unknown>} Promise resolving to the `xapi.Command.HttpClient` response.
    */
   async request(args) {
-    if (DEBUG) this.#logger.log('New Request:', args);
+    if (DEBUG) this.#logger.log("New Request:", args);
     return new Promise((resolve, reject) => {
       this.#queue.push({ ...args, resolve, reject });
-      if (this.#isProcessing) return
+      if (this.#isProcessing) return;
       this.#_processQueue();
     });
   }
@@ -85,7 +96,7 @@ const httpQueue = new class HttpQueue {
    * @returns {Promise<void>} Promise that settles after the current queue item finishes.
    */
   async #_processQueue() {
-    if (this.#queue.length === 0) return this.#isProcessing = false;
+    if (this.#queue.length === 0) return (this.#isProcessing = false);
     this.#isProcessing = true;
     const { method, options, payload, resolve, reject } = this.#queue.shift();
     if (DEBUG) this.#logger.debug(method, options, payload);
@@ -99,16 +110,17 @@ const httpQueue = new class HttpQueue {
       this.#_processQueue();
     }
   }
-}
+})();
 
 // const httpQueue = new HttpQueue();
 
 export class RemoteXAPI {
   address;
   #baseUrl;
+  #httpHost;
   #username;
   #password;
-  #logger = loggerPrefix('RemoteXAPI');
+  #logger = loggerPrefix("RemoteXAPI");
 
   Event;
   Command;
@@ -121,32 +133,46 @@ export class RemoteXAPI {
    * @param {{address: string, username: string, password: string}} device - Remote device connection details.
    */
   constructor(device) {
-    if (device == null || typeof device == 'undefined') {
-      throw new Error('device not defined');
+    if (device == null || typeof device == "undefined") {
+      throw new Error("device not defined");
     }
 
     const { address, username, password } = device;
-    if (!address) throw new Error('device.address not defined');
-    if (!username) throw new Error('device.username not defined');
-    if (!password) throw new Error('device.password not defined');
+    if (!address) throw new Error("device.address not defined");
+    if (!username) throw new Error("device.username not defined");
+    if (!password) throw new Error("device.password not defined");
 
-    const ipv6_regex = /^(?:(?:[a-fA-F\d]{1,4}:){7}(?:[a-fA-F\d]{1,4}|:)|(?:[a-fA-F\d]{1,4}:){6}(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|:[a-fA-F\d]{1,4}|:)|(?:[a-fA-F\d]{1,4}:){5}(?::(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,2}|:)|(?:[a-fA-F\d]{1,4}:){4}(?:(?::[a-fA-F\d]{1,4}){0,1}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,3}|:)|(?:[a-fA-F\d]{1,4}:){3}(?:(?::[a-fA-F\d]{1,4}){0,2}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,4}|:)|(?:[a-fA-F\d]{1,4}:){2}(?:(?::[a-fA-F\d]{1,4}){0,3}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,5}|:)|(?:[a-fA-F\d]{1,4}:){1}(?:(?::[a-fA-F\d]{1,4}){0,4}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,6}|:)|(?::(?:(?::[a-fA-F\d]{1,4}){0,5}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,7}|:)))(?:%[0-9a-zA-Z]{1,})?$/gm;     
+    const ipv6_regex =
+      /^(?:(?:[a-fA-F\d]{1,4}:){7}(?:[a-fA-F\d]{1,4}|:)|(?:[a-fA-F\d]{1,4}:){6}(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|:[a-fA-F\d]{1,4}|:)|(?:[a-fA-F\d]{1,4}:){5}(?::(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,2}|:)|(?:[a-fA-F\d]{1,4}:){4}(?:(?::[a-fA-F\d]{1,4}){0,1}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,3}|:)|(?:[a-fA-F\d]{1,4}:){3}(?:(?::[a-fA-F\d]{1,4}){0,2}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,4}|:)|(?:[a-fA-F\d]{1,4}:){2}(?:(?::[a-fA-F\d]{1,4}){0,3}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,5}|:)|(?:[a-fA-F\d]{1,4}:){1}(?:(?::[a-fA-F\d]{1,4}){0,4}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,6}|:)|(?::(?:(?::[a-fA-F\d]{1,4}){0,5}:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(?:\\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}|(?::[a-fA-F\d]{1,4}){1,7}|:)))(?:%[0-9a-zA-Z]{1,})?$/gm;
 
+    const bracketedIpv6Match = address.match(/^\[([^\]]+)\]$/);
+    const requestAddress = bracketedIpv6Match?.[1] ?? address;
 
-    if(ipv6_regex.test(address)){
-      this.#baseUrl = `https://[${address}]`;
+    if (bracketedIpv6Match || ipv6_regex.test(address)) {
+      this.#httpHost = `[${requestAddress}]`;
+      this.#baseUrl = `https://${this.#httpHost}`;
     } else {
+      this.#httpHost = address;
       this.#baseUrl = `https://${address}`;
     }
-
 
     this.address = address;
     this.#username = username;
     this.#password = password;
-    this.#logger.log('New Connection Created - Address:', address)
+    this.#logger.log("New Connection Created - Address:", address);
 
-    xapi.Config.HttpClient.Mode.set('On');
-    xapi.Config.HttpClient.AllowInsecureHTTPS.set('True');
+    xapi.Config.HttpClient.Mode.on((value) => {
+      if (value == "On") return;
+      xapi.Config.HttpClient.Mode.set("On");
+    });
+
+    xapi.Config.HttpClient.AllowInsecureHTTPS.on((value) => {
+      if (value == "True") return;
+      xapi.Config.HttpClient.AllowInsecureHTTPS.set("True");
+    });
+
+    xapi.Config.HttpClient.Mode.set("On");
+    xapi.Config.HttpClient.AllowInsecureHTTPS.set("True");
 
     /**
      * Builds a recursive proxy that lets callers access xAPI paths with dot notation.
@@ -161,29 +187,30 @@ export class RemoteXAPI {
       const proxyTarget = (...args) => root[methodName](path, ...args);
       return new Proxy(proxyTarget, {
         get(_target, prop) {
-           if (allowed.includes(prop)) {
-          // if (typeof allowed != 'undefined' && allowed?.includes(prop)) {
+          if (allowed.includes(prop)) {
+            // if (typeof allowed != 'undefined' && allowed?.includes(prop)) {
             return (...args) => {
-              return root[methodName](path, args?.[0], args?.[1])
-            }
+              return root[methodName](path, args?.[0], args?.[1]);
+            };
           }
           return proxy(root, path.concat(prop), methodName, allowed);
         },
         apply(_target, _thisArg, args) {
-          if (typeof root?.[methodName] !== 'function') throw Error(`Property is not callable`)
+          if (typeof root?.[methodName] !== "function")
+            throw Error(`Property is not callable`);
           return root[methodName](path, ...args);
         },
         set(target, prop, value) {
           target[prop] = value;
           return true;
-        }
+        },
       });
     }
 
     this.request = this._request.bind(this);
-    this.Command = proxy(this, ['Command'], 'request');
-    this.Config = proxy(this, ["Configuration"], 'request', ['get', 'set', 'on']);
-    this.Status = proxy(this, ['Status'], "request", ['get', 'on']);
+    this.Command = proxy(this, ["Command"], "request");
+    this.Config = proxy(this, ["Configuration"], "request", ["get", "set"]);
+    this.Status = proxy(this, ["Status"], "request", ["get"]);
   }
 
   /**
@@ -195,62 +222,94 @@ export class RemoteXAPI {
    * @returns {Promise<unknown>} Parsed xAPI response value for the requested path.
    */
   async _request(path = [], params, body) {
-    if (DEBUG) this.#logger.debug('Path:', path, '\nParams', JSON.stringify(params), '\nBody:', body);
+    if (DEBUG)
+      this.#logger.debug(
+        "Path:",
+        path,
+        "\nParams",
+        JSON.stringify(params),
+        "\nBody:",
+        body,
+      );
 
     // Initial request variables
     const type = path[0];
-    const isHttpPost = type == 'Command' || (type == 'Configuration' && typeof params != 'undefined');
-    const urlPath = isHttpPost ? '/putxml' : '/getxml?location=/' + path.join('/');
-    const method = isHttpPost ? 'Post' : 'Get';
+    const isHttpPost =
+      type == "Command" ||
+      (type == "Configuration" && typeof params != "undefined");
+    const urlPath = isHttpPost
+      ? "/putxml"
+      : "/getxml?location=/" + path.join("/");
+    const method = isHttpPost ? "Post" : "Get";
 
-    const AllowInsecureHTTPS = 'True';
-    const ResultBody = 'PlainText';
+    const AllowInsecureHTTPS = "True";
+    const ResultBody = "PlainText";
     const Url = `${this.#baseUrl}${urlPath}`;
     const Header = [
       "Authorization: Basic " + btoa(this.#username + ":" + this.#password),
-      "Host: " + this.address,
-      "Accept: */*"
+      "Host: " + this.#httpHost,
+      "Accept: */*",
     ];
 
-    const options = { Url, Header, ResultBody, AllowInsecureHTTPS, Timeout, ResultBody };
-    if (isHttpPost) Header.push('Content-Type: text/xml');
-    const payload = isHttpPost ? pathParamsToXML(path, params, body) : undefined;
+    const options = {
+      Url,
+      Header,
+      ResultBody,
+      AllowInsecureHTTPS,
+      Timeout,
+      ResultBody,
+    };
+    if (isHttpPost) Header.push("Content-Type: text/xml");
+    const payload = isHttpPost
+      ? pathParamsToXML(path, params, body)
+      : undefined;
 
     if (DEBUG) {
       const safeHeaders = Header.map((header) =>
-        header.startsWith('Authorization:') ? 'Authorization: [REDACTED]' : header
+        header.startsWith("Authorization:")
+          ? "Authorization: [REDACTED]"
+          : header,
       );
-      this.#logger.debug('Method:', method,
-        '\nUrl:', Url,
-        '\nHeader:', safeHeaders,
-        isHttpPost ? '\nPayload:' + payload : '');
+      this.#logger.debug(
+        "Method:",
+        method,
+        "\nUrl:",
+        Url,
+        "\nHeader:",
+        safeHeaders,
+        isHttpPost ? "\nPayload:" + payload : "",
+      );
     }
 
     try {
       const result = await httpQueue.request({ method, options, payload });
 
-      if (DEBUG) this.#logger.debug('Result Body:\n' + result?.Body);
-      const parsedBody = parseXML(result?.Body ?? '');
-      if (DEBUG) this.#logger.debug('Parsed Body:\n' + JSON.stringify(parsedBody));
+      if (DEBUG) this.#logger.debug("Result Body:\n" + result?.Body);
+      const parsedBody = parseXML(result?.Body ?? "");
+      if (DEBUG)
+        this.#logger.debug("Parsed Body:\n" + JSON.stringify(parsedBody));
 
-      const errorReason = parsedBody?.ActionError?.Reason ?? parsedBody?.Command?.ActionError?.Reason;
+      const errorReason =
+        parsedBody?.ActionError?.Reason ??
+        parsedBody?.Command?.ActionError?.Reason;
 
-      if (errorReason === 'No action detected in document') {
-        throw { message: `Method not found - Path: ${JSON.stringify(path)} - Device: ${this.address}` };
+      if (errorReason) {
+        throw createActionError(errorReason);
       }
 
-      if (type == 'Status' || (type == 'Configuration' && !isHttpPost)) {
-        if (Array.isArray(parsedBody) && parsedBody.length == 0) return parsedBody;
+      if (type == "Status" || (type == "Configuration" && !isHttpPost)) {
+        if (Array.isArray(parsedBody) && parsedBody.length == 0)
+          return parsedBody;
         return getNestedValue(parsedBody, path);
       }
 
-      if (type == 'Configuration') {
+      if (type == "Configuration") {
         return getNestedValue(parsedBody, path.slice(0, 1)) ?? parsedBody;
       }
 
-      if (type == 'Command') {
-        const resultEnd = path.length === 2 ? path.slice(1) : path.slice(path.length - 2);
-        const resultPath = [type, resultEnd.join('') + 'Result'];
+      if (type == "Command") {
+        const resultEnd = path.slice(1);
+        const resultPath = [type, resultEnd.join("") + "Result"];
         return getNestedValue(parsedBody, resultPath);
       }
 
@@ -258,16 +317,51 @@ export class RemoteXAPI {
     } catch (error) {
       if (DEBUG) this.#logger.error(error);
       const statusCode = error?.data?.StatusCode;
-      if (statusCode == '401') {
+      if (statusCode == "401") {
         throw { message: `Unauthorized` };
       }
-      if (error?.message?.startsWith('Method not found -')) {
+      if (isXapiError(error)) {
         throw error;
       }
-      throw { message: `[${this.address}]: ${error.message}` };
+      throw {
+        message: `[${this.address}]: ${error?.message ?? String(error)}`,
+      };
     }
   }
+}
 
+/**
+ * Converts remote RoomOS action error XML into the same code/message shape used by xAPI errors.
+ *
+ * @param {string} reason - ActionError reason returned by the remote device.
+ * @returns {{code: number, message: string}} RoomOS-style error object.
+ */
+function createActionError(reason) {
+  if (reason === "No action detected in document") {
+    return { ...INVALID_COMMAND_ERROR };
+  }
+  if (
+    reason === INVALID_OR_MISSING_PARAMETERS_ERROR.message ||
+    reason.startsWith("Bad usage:")
+  ) {
+    return { code: INVALID_OR_MISSING_PARAMETERS_ERROR.code, message: reason };
+  }
+  return { code: 1, message: reason };
+}
+
+/**
+ * Checks whether a thrown value already follows the xAPI error object shape.
+ *
+ * @param {unknown} error - Thrown value to inspect.
+ * @returns {boolean} True when the value has xAPI-style code and message fields.
+ */
+function isXapiError(error) {
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    Number.isInteger(error.code) &&
+    typeof error.message === "string",
+  );
 }
 
 /**
@@ -285,12 +379,12 @@ function parseXML(xmlString) {
    * @returns {string | number | boolean} Converted primitive value.
    */
   const convertValue = (value) => {
-    if (value === 'True') return true;
-    if (value === 'False') return false;
-    if (value === 'Yes') return true;
-    if (value === 'No') return false;
+    if (value === "True") return true;
+    if (value === "False") return false;
+    if (value === "Yes") return true;
+    if (value === "No") return false;
     // Check if it's a valid number (not just an empty string or whitespace)
-    if (!isNaN(value) && value.trim() !== '') {
+    if (!isNaN(value) && value.trim() !== "") {
       return Number(value);
     }
     return value;
@@ -319,12 +413,12 @@ function parseXML(xmlString) {
         if (attrsString) {
           // Parse attributes for self-closing tags
           const attrMatches = attrsString.matchAll(/(\w+)="([^"]*)"/g);
-          const allowedAttrs = ['item', 'status']
+          const allowedAttrs = ["item", "status"];
           for (const attrMatch of attrMatches) {
             const key = attrMatch[1];
             const value = attrMatch[2];
             if (allowedAttrs.includes(key)) {
-              attributes[key == 'item' ? 'id' : key] = value;
+              attributes[key == "item" ? "id" : key] = value;
             }
           }
         }
@@ -348,19 +442,18 @@ function parseXML(xmlString) {
     // Parse attributes for the current tag
     if (attrsString) {
       const attrMatches = attrsString.matchAll(/(\w+)="([^"]*)"/g);
-      const allowedAttrs = ['item', 'status']
+      const allowedAttrs = ["item", "status"];
       for (const attrMatch of attrMatches) {
         const key = attrMatch[1];
         const value = attrMatch[2];
         if (allowedAttrs.includes(key)) {
-          elementResult[key == 'item' ? 'id' : key] = value;
+          elementResult[key == "item" ? "id" : key] = value;
         }
       }
     }
 
-
     // Check if content is purely text (no child tags within it)
-    const firstOpenTagInContent = content.indexOf('<');
+    const firstOpenTagInContent = content.indexOf("<");
     if (firstOpenTagInContent === -1) {
       const textContent = content.trim();
       if (textContent) {
@@ -378,7 +471,7 @@ function parseXML(xmlString) {
       const childNodes = {};
 
       while (cursor < content.length) {
-        const nextOpenTagIndex = content.indexOf('<', cursor);
+        const nextOpenTagIndex = content.indexOf("<", cursor);
         if (nextOpenTagIndex === -1) {
           // No more tags, remaining content is text (e.g., whitespace between tags)
           // For this specific XML, we mostly expect whitespace here.
@@ -387,12 +480,14 @@ function parseXML(xmlString) {
 
         // Find the end of the current child tag's opening part
         let openTagStart = nextOpenTagIndex;
-        let openTagEnd = content.indexOf('>', openTagStart);
+        let openTagEnd = content.indexOf(">", openTagStart);
         if (openTagEnd === -1) break; // Malformed XML if '>' is missing
 
         // Extract the child tag name
-        let currentChildTagName = content.substring(openTagStart + 1, openTagEnd).split(/\s/)[0];
-        let isSelfClosing = content[openTagEnd - 1] === '/';
+        let currentChildTagName = content
+          .substring(openTagStart + 1, openTagEnd)
+          .split(/\s/)[0];
+        let isSelfClosing = content[openTagEnd - 1] === "/";
 
         let childEndIndex = -1;
         if (isSelfClosing) {
@@ -402,21 +497,29 @@ function parseXML(xmlString) {
           let openCount = 0;
           let tempCursor = openTagEnd + 1;
           while (tempCursor < content.length) {
-            const nextOpen = content.indexOf('<' + currentChildTagName, tempCursor);
-            const nextClose = content.indexOf('</' + currentChildTagName + '>', tempCursor);
+            const nextOpen = content.indexOf(
+              "<" + currentChildTagName,
+              tempCursor,
+            );
+            const nextClose = content.indexOf(
+              "</" + currentChildTagName + ">",
+              tempCursor,
+            );
 
             if (nextOpen !== -1 && (nextOpen < nextClose || nextClose === -1)) {
               // Found another opening tag of the same name before a closing tag
               openCount++;
-              tempCursor = content.indexOf('>', nextOpen) + 1;
+              tempCursor = content.indexOf(">", nextOpen) + 1;
             } else if (nextClose !== -1) {
               // Found a closing tag
               if (openCount === 0) {
-                childEndIndex = nextClose + ('</' + currentChildTagName + '>').length;
+                childEndIndex =
+                  nextClose + ("</" + currentChildTagName + ">").length;
                 break;
               } else {
                 openCount--;
-                tempCursor = nextClose + ('</' + currentChildTagName + '>').length;
+                tempCursor =
+                  nextClose + ("</" + currentChildTagName + ">").length;
               }
             } else {
               break; // Malformed XML or no matching closing tag
@@ -444,7 +547,11 @@ function parseXML(xmlString) {
           }
           childNodes[childTagName].push(childValue);
         } else {
-          if (childValue && typeof childValue === 'object' && Object.prototype.hasOwnProperty.call(childValue, 'id')) {
+          if (
+            childValue &&
+            typeof childValue === "object" &&
+            Object.prototype.hasOwnProperty.call(childValue, "id")
+          ) {
             childNodes[childTagName] = [childValue];
           } else {
             childNodes[childTagName] = childValue;
@@ -459,10 +566,9 @@ function parseXML(xmlString) {
     return { [tagName]: elementResult };
   };
 
-  const cleanXml = xmlString.replace(/<\?xml[^>]*\?>/, '').trim();
+  const cleanXml = xmlString.replace(/<\?xml[^>]*\?>/, "").trim();
   return parseNode(cleanXml);
-};
-
+}
 
 /**
  * Builds the XML payload used for RoomOS `putxml` requests.
@@ -473,7 +579,7 @@ function parseXML(xmlString) {
  * @returns {string} XML payload ready to send to the device.
  */
 function pathParamsToXML(path = [], params, body) {
-  if (path.length == 0) return '';
+  if (path.length == 0) return "";
   const nodes = [...path];
 
   /**
@@ -484,22 +590,22 @@ function pathParamsToXML(path = [], params, body) {
    */
   function escapeXml(val) {
     return String(val)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   }
   let innerXml;
   if (params === undefined) {
     innerXml = `<${escapeXml(nodes.pop())}/>`;
-  } else if (typeof params === 'object' && params !== null) {
+  } else if (typeof params === "object" && params !== null) {
     const lastNode = escapeXml(nodes.pop());
     innerXml = `<${lastNode}>`;
     for (const [key, value] of Object.entries(params)) {
       innerXml += `<${escapeXml(key)}>${escapeXml(value)}</${escapeXml(key)}>`;
     }
-    if (typeof body != 'undefined') {
+    if (typeof body != "undefined") {
       innerXml += `<body>${escapeXml(body)}</body>`;
     }
     innerXml += `</${lastNode}>`;
@@ -512,7 +618,7 @@ function pathParamsToXML(path = [], params, body) {
     innerXml = `<${escapeXml(nodes[i])}>${innerXml}</${escapeXml(nodes[i])}>`;
   }
 
-  return innerXml
+  return innerXml;
 }
 
 /**
@@ -523,10 +629,12 @@ function pathParamsToXML(path = [], params, body) {
  * @returns {unknown} Value found at the requested path, or `undefined` if missing.
  */
 function getNestedValue(obj = {}, path = []) {
-  if (obj === null || typeof obj === 'undefined' || !Array.isArray(path)) return
-  if (path.length === 0) return obj
+  if (obj === null || typeof obj === "undefined" || !Array.isArray(path))
+    return;
+  if (path.length === 0) return obj;
   return path.reduce((currentValue, key) => {
-    if (currentValue === null || typeof currentValue === 'undefined') return
-    if (Object.prototype.hasOwnProperty.call(currentValue, key)) return currentValue[key];
+    if (currentValue === null || typeof currentValue === "undefined") return;
+    if (Object.prototype.hasOwnProperty.call(currentValue, key))
+      return currentValue[key];
   }, obj);
 }

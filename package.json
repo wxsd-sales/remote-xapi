@@ -1,19 +1,23 @@
 {
   "name": "remote-xapi",
-  "version": "1.0.0",
-  "description": "This is an example Cisco Collaboration RoomOS library macro which help with calling xAPI on remote devices",
+  "version": "1.0.1",
+  "description": "Cisco RoomOS library macro for calling xAPI on remote devices",
   "private": true,
   "type": "module",
-    "scripts": {
+  "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watchAll --runInBand"
   },
-  "keywords": ["macro", "roomos", "collaboration"],
+  "keywords": [
+    "macro",
+    "roomos",
+    "collaboration"
+  ],
   "author": "William Mills",
   "devDependencies": {
     "@jest/globals": "^30.3.0",
     "jest": "^30.3.0",
-    "jest-mock-xapi": "^1.0.5"
+    "jest-mock-xapi": "^1.0.6"
   },
   "jest": {
     "rootDir": ".",
